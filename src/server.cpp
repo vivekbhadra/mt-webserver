@@ -22,9 +22,9 @@
 // ─────────────────────────────────────────────
 // CONFIG
 // ─────────────────────────────────────────────
-static const int PORT = 8080;
-static const int THREAD_POOL = 4;
-static const int BACKLOG = 10;
+static const int PORT = 8080;      // Listening port
+static const int THREAD_POOL = 4;  // Number of worker threads
+static const int BACKLOG = 10;     // Max pending connections in listen queue
 static const int RECV_TIMEOUT = 5; // seconds
 
 // ─────────────────────────────────────────────
@@ -33,10 +33,10 @@ static const int RECV_TIMEOUT = 5; // seconds
 struct Connection
 {
     int fd;
-    std::string remote_ip;
-    int remote_port;
-    std::string status; // "active" | "done"
-    std::chrono::steady_clock::time_point started;
+    std::string remote_ip;                         // For display only; not used for logic
+    int remote_port;                               // For display only; not used for logic
+    std::string status;                            // "active" | "done"
+    std::chrono::steady_clock::time_point started; // time_point when connection was accepted
 };
 
 std::mutex conn_mutex;
@@ -51,10 +51,14 @@ void register_connection(int fd, const std::string &ip, int port)
 
 void close_connection(int fd)
 {
+    // shutdown is a linux-specific way to signal the client we're done before closing
+    // shutdown(fd, SHUT_WR) would allow client to read remaining data before we close the socket
+    // shutdown is better than just close() for TCP sockets to avoid RST (Reset) issues on some
+    // platforms when client is still reading
     shutdown(fd, SHUT_RDWR);
     ::close(fd);
     std::lock_guard<std::mutex> lk(conn_mutex);
-    connections.erase(fd);
+    connections.erase(fd); // Remove from connection tracking map
 }
 
 // ─────────────────────────────────────────────
@@ -62,7 +66,7 @@ void close_connection(int fd)
 // ─────────────────────────────────────────────
 template <typename T> class SafeQueue
 {
-    std::queue<T> q;
+    std::queue<T> task_queue;
     std::mutex mtx;
     std::condition_variable cv;
 
@@ -71,7 +75,7 @@ template <typename T> class SafeQueue
     {
         {
             std::lock_guard<std::mutex> lk(mtx);
-            q.push(std::move(item));
+            task_queue.push(std::move(item));
         }
         cv.notify_one();
     }
@@ -80,11 +84,12 @@ template <typename T> class SafeQueue
     bool pop(T &out, std::atomic<bool> &running)
     {
         std::unique_lock<std::mutex> lk(mtx);
-        cv.wait(lk, [&] { return !q.empty() || !running; });
-        if (q.empty())
+        // Wait until there's work or we're shutting down
+        cv.wait(lk, [&] { return !task_queue.empty() || !running; });
+        if (task_queue.empty())
             return false;
-        out = std::move(q.front());
-        q.pop();
+        out = std::move(task_queue.front());
+        task_queue.pop();
         return true;
     }
 
@@ -95,7 +100,7 @@ template <typename T> class SafeQueue
     size_t size()
     {
         std::lock_guard<std::mutex> lk(mtx);
-        return q.size();
+        return task_queue.size();
     }
 };
 
