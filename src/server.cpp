@@ -213,6 +213,10 @@ void handle_client(int fd)
     size_t sent = 0;
     while (sent < response.size())
     {
+        // MSG_NOSIGNAL prevents SIGPIPE on Linux if client disconnects while we're sending
+        // SIGPIPE can crash the server if not handled, so we use MSG_NOSIGNAL to avoid that.
+        // On platforms that don't support MSG_NOSIGNAL, this flag is ignored,
+        // but it's essential for Linux to ensure robustness.
         ssize_t n = send(fd, response.c_str() + sent, response.size() - sent, MSG_NOSIGNAL);
         if (n <= 0)
             break;
@@ -293,6 +297,8 @@ void console_thread()
 int main()
 {
     // Create listening socket
+    // This socker is required for accepting incoming client connections.
+    // It listens on the specified PORT and is used by the main thread to accept new clients.
     int server_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (server_fd < 0)
     {
@@ -304,15 +310,17 @@ int main()
     setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 
     sockaddr_in addr{};
-    addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = INADDR_ANY;
-    addr.sin_port = htons(PORT);
+    addr.sin_family = AF_INET;         // IPv4
+    addr.sin_addr.s_addr = INADDR_ANY; // Listen on all interfaces (0.0.0.0)
+    addr.sin_port = htons(PORT);       // sin_port is used to specify the port
+                                       // number on which the server will listen
 
     if (bind(server_fd, (sockaddr *)&addr, sizeof(addr)) < 0)
     {
         perror("bind");
         return 1;
     }
+    // registers the socket with the OS as ready to accept connections and returns immediately.
     if (listen(server_fd, BACKLOG) < 0)
     {
         perror("listen");
