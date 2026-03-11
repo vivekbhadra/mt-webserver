@@ -1,25 +1,40 @@
 CXX      = g++
 CXXFLAGS = -std=c++17 -O2 -pthread -Wall
 
-TARGET = server
-SRC    = src/server.cpp
+.PHONY: all clean run dev up down logs build restart shell
 
-.PHONY: all clean run docker-build docker-run
-
-all: $(TARGET)
-
-$(TARGET): $(SRC)
-	$(CXX) $(CXXFLAGS) -o $(TARGET) $(SRC)
+# ── Local build (no Docker) ──────────────────
+all:
+	$(CXX) $(CXXFLAGS) -o server src/server.cpp
 
 clean:
-	rm -f $(TARGET)
+	rm -f server
 
 run: all
-	./$(TARGET)
+	./server
 
-# Docker targets
-docker-build:
-	docker build -t mt-webserver .
+# ── Docker Compose targets ───────────────────
+build:
+	docker compose build
 
-docker-run:
-	docker run -it --rm -p 8080:8080 mt-webserver
+up:
+	docker compose up --build
+
+dev:
+	docker compose up --build --attach server   # only stream server logs
+
+down:
+	docker compose down
+
+logs:
+	docker compose logs -f
+
+restart:
+	docker compose restart server
+
+shell:
+	docker compose exec server /bin/bash
+
+# ── Console access (for console thread) ──────
+console:
+	docker attach mt-webserver

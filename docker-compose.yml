@@ -1,0 +1,59 @@
+services:
+
+  # ── Main application ──────────────────────────────────────
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime           # use the lean runtime stage
+    image: mt-webserver:latest
+    container_name: mt-webserver
+    ports:
+      - "${PORT:-8080}:8080"    # override via .env or env var
+    environment:
+      - ENV=${ENV:-development}
+    restart: unless-stopped
+    stdin_open: true            # keeps console thread's stdin alive
+    tty: true
+    networks:
+      - webnet
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/8080' || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 256M
+
+  # ── Nginx reverse proxy ───────────────────────────────────
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: mt-webserver-nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      server:
+        condition: service_healthy
+    networks:
+      - webnet
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+networks:
+  webnet:
+    driver: bridge
