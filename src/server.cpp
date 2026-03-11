@@ -74,6 +74,7 @@ template <typename T> class SafeQueue
     void push(T item)
     {
         {
+            // thread-safe push
             std::lock_guard<std::mutex> lk(mtx);
             task_queue.push(std::move(item));
         }
@@ -148,7 +149,6 @@ void handle_client(int fd)
         }
     }
 
-    // std::string request(buf, n);
     //  Parse first line: METHOD PATH VERSION
     std::string method, path, version;
     {
@@ -161,7 +161,7 @@ void handle_client(int fd)
     if (path == "/")
     {
         body = "<html><body>"
-               "<h1>🚀 Multithreaded Web Server POC</h1>"
+               "<h1> Multithreaded Web Server POC</h1>"
                "<p>Thread: <b>" +
                std::to_string(std::hash<std::thread::id>{}(std::this_thread::get_id()) % 10000) +
                "</b></p>"
