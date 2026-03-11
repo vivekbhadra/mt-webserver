@@ -9,9 +9,12 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build
-COPY src/server.cpp .
+COPY src/ .
 
-RUN g++ -std=c++17 -O2 -pthread -Wall -o server server.cpp
+RUN g++ -std=c++17 -O2 -pthread -Wall \
+    main.cpp ConnectionManager.cpp RequestHandler.cpp \
+    ConsoleThread.cpp WebServer.cpp \
+    -I . -o server
 
 # ─────────────────────────────────────────────
 # Stage 2: Runtime (minimal image)

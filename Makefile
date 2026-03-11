@@ -1,11 +1,13 @@
 CXX      = g++
 CXXFLAGS = -std=c++17 -O2 -pthread -Wall
+SRCS     = src/main.cpp src/ConnectionManager.cpp src/RequestHandler.cpp \
+           src/ConsoleThread.cpp src/WebServer.cpp
+INCS     = -I src
 
 .PHONY: all clean run up down logs build restart shell console
 
-# ── Local build (no Docker) ──────────────────
 all:
-	$(CXX) $(CXXFLAGS) -o server src/server.cpp
+	$(CXX) $(CXXFLAGS) $(SRCS) $(INCS) -o server
 
 clean:
 	rm -f server
@@ -13,24 +15,23 @@ clean:
 run: all
 	./server
 
-# ── Docker Compose targets ───────────────────
 build:
-	docker compose build # Build the Docker image
+	docker compose build
 
 up:
-	docker compose up --build # Start the server in the foreground
+	docker compose up --build
 
 down:
-	docker compose down   # Stop and remove containers
+	docker compose down
 
 logs:
-	docker compose logs -f  # Follow logs in real-time
+	docker compose logs -f
 
 restart:
-	docker compose restart server  # Restart the server container
+	docker compose restart server
 
 shell:
-	docker compose exec server /bin/bash  # Get a shell inside the server container
+	docker compose exec server /bin/bash
 
 console:
-	docker attach mt-webserver   # Attach to the server container's console (use Ctrl+C to detach)
+	docker attach mt-webserver

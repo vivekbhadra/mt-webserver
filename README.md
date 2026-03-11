@@ -36,16 +36,37 @@ Port 8080 is internal only — never exposed to host
 
 ---
 
+## Class Design
+
+```
+main.cpp
+  └── WebServer(cm, rh)
+        ├── ConnectionManager    ← owns mutex + connection map
+        ├── RequestHandler(cm)   ← owns HTTP parse, routing, send
+        └── ConsoleThread(cm)    ← owns stdin loop (constructed internally)
+
+SafeQueue<int>                   ← header-only templated utility
+```
+
+Dependencies are injected via constructor references — no globals, no singletons.
+
+---
+
 ## Project Structure
 
 ```
 mt-webserver/
 ├── src/
-│   └── server.cpp          ← C++ server
+│   ├── main.cpp
+│   ├── SafeQueue.hpp             ← header-only (templated)
+│   ├── ConnectionManager.hpp/cpp ← mutex + connection map
+│   ├── RequestHandler.hpp/cpp    ← HTTP parse, routing, response
+│   ├── ConsoleThread.hpp/cpp     ← stdin commands
+│   └── WebServer.hpp/cpp         ← socket, thread pool, accept loop
 ├── nginx/
-│   └── nginx.conf          ← conf.d drop-in config
-├── Dockerfile              ← multi-stage build
-├── docker-compose.yml      ← full stack
+│   └── nginx.conf                ← conf.d drop-in config
+├── Dockerfile                    ← multi-stage build
+├── docker-compose.yml            ← full stack
 ├── Makefile
 ├── .env.example
 ├── .gitignore
@@ -118,11 +139,14 @@ for i in {1..4}; do curl http://localhost/slow & done; wait
 | Concept | Where |
 |---------|-------|
 | `std::thread` | Worker pool, console thread |
-| `std::mutex` + `std::lock_guard` | Connection map, SafeQueue |
-| `std::condition_variable` | SafeQueue::pop() — blocks idle workers |
-| `std::atomic<bool>` | `server_running` shutdown flag |
-| Producer/consumer | Listener → Queue → Workers |
+| `std::mutex` + `std::lock_guard` | `ConnectionManager`, `SafeQueue` |
+| `std::condition_variable` | `SafeQueue::pop()` — blocks idle workers |
+| `std::atomic<bool>` | `running_` shutdown flag in `WebServer` |
+| Producer/consumer | Listener → `SafeQueue` → Workers |
+| Constructor dependency injection | `WebServer(cm, rh)`, `RequestHandler(cm)` |
 | Graceful shutdown | `wake_all()` + `join()` |
+
+---
 
 ## Industry Practices
 
@@ -137,3 +161,5 @@ for i in {1..4}; do curl http://localhost/slow & done; wait
 | Log rotation | JSON driver, 10MB max, 3 files |
 | Resource limits | CPU + memory caps in Compose |
 | `.env` for config | No hardcoded values |
+| Single responsibility | One class per concern |
+| Dependency injection | Constructor references, no globals |
