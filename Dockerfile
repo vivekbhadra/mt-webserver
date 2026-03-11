@@ -6,7 +6,6 @@ FROM ubuntu:22.04 AS builder
 RUN apt-get update && apt-get install -y \
     build-essential \
     g++ \
-    make \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build
@@ -19,15 +18,10 @@ RUN g++ -std=c++17 -O2 -pthread -Wall -o server server.cpp
 # ─────────────────────────────────────────────
 FROM ubuntu:22.04 AS runtime
 
-# Non-root user for security best practice
 RUN groupadd -r appgroup && useradd -r -g appgroup appuser
 
 WORKDIR /app
-
-# Copy only the compiled binary
 COPY --from=builder /build/server .
-
-# Correct ownership
 RUN chown appuser:appgroup /app/server
 
 USER appuser

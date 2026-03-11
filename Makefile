@@ -1,7 +1,7 @@
 CXX      = g++
 CXXFLAGS = -std=c++17 -O2 -pthread -Wall
 
-.PHONY: all clean run dev up down logs build restart shell
+.PHONY: all clean run up down logs build restart shell console
 
 # ── Local build (no Docker) ──────────────────
 all:
@@ -20,9 +20,6 @@ build:
 up:
 	docker compose up --build
 
-dev:
-	docker compose up --build --attach server   # only stream server logs
-
 down:
 	docker compose down
 
@@ -35,6 +32,5 @@ restart:
 shell:
 	docker compose exec server /bin/bash
 
-# ── Console access (for console thread) ──────
 console:
 	docker attach mt-webserver
